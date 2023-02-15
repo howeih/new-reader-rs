@@ -4,7 +4,6 @@ use {
     socket2::{Domain, Protocol, Socket, Type},
     std::{
         net::{Ipv4Addr, SocketAddr},
-        os::fd::AsRawFd,
         str::FromStr,
     },
 };
@@ -59,39 +58,55 @@ fn open_udp(uri: &str) -> Result<FileDescriptor> {
     Ok(mk_udp_sock(udp_ip, udp_port)?)
 }
 
-pub fn reader<T>(uri: Option<T>) -> Result<()>
+pub fn reader<T>(uri: Option<T>) -> Result<FileDescriptor>
 where
     T: AsRef<str>,
 {
-    if let Some(uri) = uri {
+    let fd = if let Some(uri) = uri {
         let uri = uri.as_ref();
         if uri.starts_with("udp://@") {
-            open_mcast(uri)?;
+            open_mcast(uri)?
         } else if uri.starts_with("udp://") {
-            open_udp(uri)?;
+            open_udp(uri)?
         } else {
             let file = std::fs::File::open(uri)?;
-            FileDescriptor::dup(&file)?;
+            FileDescriptor::dup(&file)?
         }
     } else {
         let stdin = std::io::stdin();
-        stdin.as_raw_fd();
+        FileDescriptor::dup(&stdin)?
     };
-    Ok(())
+    Ok(fd)
 }
 
 #[cfg(test)]
 mod test {
+    use std::io::Read;
+
     use crate::new_reader::reader;
     #[test]
     fn test_file_reader() {
         let file_path = "./README.md";
-        reader(Some(file_path)).unwrap();
+        let mut fd = reader(Some(file_path)).unwrap();
+        let mut buffer = [0; 188];
+        fd.read(&mut buffer).unwrap();
+        println!("{:02X?}", buffer);
     }
 
     #[test]
     fn test_udp_sock() {
         let udp_path = "udp://127.0.0.1:9090";
-        reader(Some(udp_path)).unwrap()
+        let mut fd = reader(Some(udp_path)).unwrap();
+        let mut buffer = [0; 188];
+        fd.read(&mut buffer).unwrap();
+        println!("{:02X?}", buffer);
+    }
+
+    #[test]
+    fn test_stdin() {
+        let mut fd = reader(Option::<&str>::None).unwrap();
+        let mut buffer = [0; 188];
+        fd.read(&mut buffer).unwrap();
+        println!("{:02X?}", buffer);
     }
 }
