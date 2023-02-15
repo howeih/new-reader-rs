@@ -1,8 +1,10 @@
 use {
     anyhow::Result,
-    filedescriptor::FileDescriptor,
+    filedescriptor::{FileDescriptor, Pipe},
+    isahc,
     socket2::{Domain, Protocol, Socket, Type},
     std::{
+        io::{Read, Write},
         net::{Ipv4Addr, SocketAddr},
         str::FromStr,
     },
@@ -58,6 +60,16 @@ fn open_udp(uri: &str) -> Result<FileDescriptor> {
     Ok(mk_udp_sock(udp_ip, udp_port)?)
 }
 
+fn open_http(uri: &str) -> Result<FileDescriptor> {
+    let mut response = isahc::get(uri)?;
+    let mut pipe = Pipe::new()?;
+    let mut body = String::new();
+    let b = response.body_mut();
+    b.read_to_string(&mut body)?;
+    pipe.write.write(body.as_bytes())?;
+    Ok(pipe.read)
+}
+
 pub fn reader<T>(uri: Option<T>) -> Result<FileDescriptor>
 where
     T: AsRef<str>,
@@ -68,6 +80,8 @@ where
             open_mcast(uri)?
         } else if uri.starts_with("udp://") {
             open_udp(uri)?
+        } else if uri.starts_with("http://") {
+            open_http(uri)?
         } else {
             let file = std::fs::File::open(uri)?;
             FileDescriptor::dup(&file)?
@@ -105,6 +119,14 @@ mod test {
     #[test]
     fn test_stdin() {
         let mut fd = reader(Option::<&str>::None).unwrap();
+        let mut buffer = [0; 188];
+        fd.read(&mut buffer).unwrap();
+        println!("{:02X?}", buffer);
+    }
+
+    #[test]
+    fn test_http() {
+        let mut fd = reader(Some("http://www.example.com/")).unwrap();
         let mut buffer = [0; 188];
         fd.read(&mut buffer).unwrap();
         println!("{:02X?}", buffer);
