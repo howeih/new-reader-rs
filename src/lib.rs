@@ -1,1 +1,2 @@
-pub mod new_reader;
+mod new_reader;
+pub use crate::new_reader::reader;

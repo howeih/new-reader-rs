@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.69"
-bytes = "1.4.0"
-curl = "0.4.44"
-filedescriptor = "0.8.2"
-isahc = "1.7.2"
-socket2 = { version = "0.4.7", features = ["all"] }
+anyhow = "1.0"
+bytes = "1.4"
+curl = "0.4"
+filedescriptor = "0.8"
+isahc = "1.7"
+socket2 = { version = "0.4", features = ["all"] }
