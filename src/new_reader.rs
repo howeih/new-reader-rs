@@ -80,7 +80,7 @@ where
             open_mcast(uri)?
         } else if uri.starts_with("udp://") {
             open_udp(uri)?
-        } else if uri.starts_with("http://") {
+        } else if uri.starts_with("http") {
             open_http(uri)?
         } else {
             let file = std::fs::File::open(uri)?;
