@@ -1,10 +1,10 @@
 use {
     anyhow::Result,
-    filedescriptor::{FileDescriptor, Pipe},
-    isahc,
+    filedescriptor::FileDescriptor,
+    isahc::{Body, Response},
     socket2::{Domain, Protocol, Socket, Type},
     std::{
-        io::{Read, Write},
+        io::Read,
         net::{Ipv4Addr, SocketAddr},
         str::FromStr,
     },
@@ -60,17 +60,13 @@ fn open_udp(uri: &str) -> Result<FileDescriptor> {
     Ok(mk_udp_sock(udp_ip, udp_port)?)
 }
 
-fn open_http(uri: &str) -> Result<FileDescriptor> {
-    let mut response = isahc::get(uri)?;
-    let mut pipe = Pipe::new()?;
-    let mut body = String::new();
-    let b = response.body_mut();
-    b.read_to_string(&mut body)?;
-    pipe.write.write(body.as_bytes())?;
-    Ok(pipe.read)
+fn open_http(uri: &str) -> Result<Body> {
+    let response: Response<Body> = isahc::get(uri)?;
+    let (_, body) = response.into_parts();
+    Ok(body)
 }
 
-pub fn reader<T>(uri: Option<T>) -> Result<FileDescriptor>
+pub fn reader<T>(uri: Option<T>) -> Result<Box<dyn Read>>
 where
     T: AsRef<str>,
 {
@@ -81,7 +77,7 @@ where
         } else if uri.starts_with("udp://") {
             open_udp(uri)?
         } else if uri.starts_with("http") {
-            open_http(uri)?
+            return Ok(Box::new(open_http(uri)?));
         } else {
             let file = std::fs::File::open(uri)?;
             FileDescriptor::dup(&file)?
@@ -90,7 +86,7 @@ where
         let stdin = std::io::stdin();
         FileDescriptor::dup(&stdin)?
     };
-    Ok(fd)
+    Ok(Box::new(fd))
 }
 
 #[cfg(test)]
@@ -130,5 +126,14 @@ mod test {
         let mut buffer = [0; 188];
         fd.read(&mut buffer).unwrap();
         println!("{:02X?}", buffer);
+    }
+
+    #[test]
+    fn test_stream() {
+        let mut fd = reader(Some("https://futzu.com/xaa.ts")).unwrap();
+        let mut buffer = [0; 188];
+        while fd.read(&mut buffer).unwrap() > 0 {
+            println!("{:02X?}", buffer);
+        }
     }
 }
